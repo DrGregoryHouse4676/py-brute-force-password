@@ -1,6 +1,6 @@
 import time
 from hashlib import sha256
-
+from multiprocessing import cpu_count, Pool
 
 PASSWORDS_TO_BRUTE_FORCE = [
     "b4061a4bcfe1a2cbf78286f3fab2fb578266d1bd16c414c650c5ac04dfc696e1",
@@ -20,27 +20,64 @@ def sha256_hash_str(to_hash: str) -> str:
     return sha256(to_hash.encode("utf-8")).hexdigest()
 
 
-def brute_force_password() -> None:
-    target_hashes = set(PASSWORDS_TO_BRUTE_FORCE)
-    found_passwords = {}
-    for num in range(100000000):
+def check_range(args):
+    start, end, target_hashes = args
+    found = []
+
+    for num in range(start, end):
         password = f"{num:08d}"
         hash_value = sha256(password.encode("utf-8")).hexdigest()
 
         if hash_value in target_hashes:
+            found.append((password, hash_value))
+
+    return found
+
+def brute_force_password() -> None:
+    target_hashes = set(PASSWORDS_TO_BRUTE_FORCE)
+    found_passwords = {}
+
+    print("Starting brute force attack...")
+    print(f"Target: {len(PASSWORDS_TO_BRUTE_FORCE)} passwords")
+    print(f"Search space: 100,000,000 combinations")
+    print(f"Using {cpu_count()} CPU cores\n")
+
+    # Divide work into chunks for multiprocessing
+    chunk_size = 100000000 // cpu_count()
+    ranges = []
+
+    for i in range(cpu_count()):
+        start = i * chunk_size
+        end = start + chunk_size if i < cpu_count() - 1 else 100000000
+        ranges.append((start, end, target_hashes))
+
+    with Pool(cpu_count()) as pool:
+        results = pool.map(check_range, ranges)
+
+    for chunk_results in results:
+        for password, hash_value in chunk_results:
             found_passwords[hash_value] = password
-            print(f"Found: {password} -> {hash_value}")
+            print(f"[{len(found_passwords)}/10] Found: {password} -> {hash_value}")
 
-            if len(found_passwords) == len(PASSWORDS_TO_BRUTE_FORCE):
-                break
+    print(f"\n{'=' * 70}")
+    print(f"Total passwords found: {len(found_passwords)}/{len(PASSWORDS_TO_BRUTE_FORCE)}")
+    print(f"{'=' * 70}")
+    print("\nAll passwords:")
 
-        print(f"\nTotal passwords found: {len(found_passwords)}")
-        print("\nAll passwords:")
-        for hash_val in PASSWORDS_TO_BRUTE_FORCE:
-            if hash_val in found_passwords:
-                print(f"{found_passwords[hash_val]}")
-            else:
-                print(f"NOT FOUND for hash: {hash_val}")
+    for i, hash_val in enumerate(PASSWORDS_TO_BRUTE_FORCE, 1):
+        if hash_val in found_passwords:
+            print(f"{i}. {found_passwords[hash_val]}")
+        else:
+            print(f"{i}. NOT FOUND")
+
+    if found_passwords:
+        print(f"\n{'=' * 70}")
+        print("VERIFICATION:")
+        print(f"{'=' * 70}")
+        for hash_val, password in found_passwords.items():
+            calculated = sha256_hash_str(password)
+            status = "✓" if calculated == hash_val else "✗"
+            print(f"{status} {password} -> matches: {calculated == hash_val}")
 
 
 if __name__ == "__main__":
