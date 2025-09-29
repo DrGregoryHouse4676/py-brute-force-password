@@ -21,7 +21,26 @@ def sha256_hash_str(to_hash: str) -> str:
 
 
 def brute_force_password() -> None:
-    pass
+    target_hashes = set(PASSWORDS_TO_BRUTE_FORCE)
+    found_passwords = {}
+    for num in range(100000000):
+        password = f"{num:08d}"
+        hash_value = sha256(password.encode("utf-8")).hexdigest()
+
+        if hash_value in target_hashes:
+            found_passwords[hash_value] = password
+            print(f"Found: {password} -> {hash_value}")
+
+            if len(found_passwords) == len(PASSWORDS_TO_BRUTE_FORCE):
+                break
+
+        print(f"\nTotal passwords found: {len(found_passwords)}")
+        print("\nAll passwords:")
+        for hash_val in PASSWORDS_TO_BRUTE_FORCE:
+            if hash_val in found_passwords:
+                print(f"{found_passwords[hash_val]}")
+            else:
+                print(f"NOT FOUND for hash: {hash_val}")
 
 
 if __name__ == "__main__":
